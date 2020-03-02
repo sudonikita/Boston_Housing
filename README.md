@@ -4,7 +4,7 @@ This analysis is about Boston Housing Data. The medv variable is the target vari
 
 Number of Cases: The dataset contains a total of 506 cases.
 
-*There are 14 attributes in each case of the dataset. They are:
+-There are 14 attributes in each case of the dataset. They are:
 	CRIM - per capita crime rate by town
 	ZN - proportion of residential land zoned for lots over 25,000 sq.ft.
 	INDUS - proportion of non-retail business acres per town.
