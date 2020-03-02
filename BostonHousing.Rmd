@@ -1,0 +1,132 @@
+---
+title: "Varible Selection"
+output: word_document
+---
+## 1. Predicting the Median Value of House Prices in Boston using Linear Regression
+
+Boston housing dataset is a dataset derived from the information collected by U.S Census Service concerning housing in the area of Boston Mass. This dataset has been used to explain many novel topics in field of Statistics & Machine Learning. Often this dataset is also used as benchmark to compare the performnaces of various Machine Learning Algorithms.
+
+#### Approach: We first split the dataset into train & test, with seed = 13433497 , and then run a full model with all the variables, further we try to select the variables for our model using three different variable selection method namely Best Subset, Lasso & Stepwise regression.
+
+#### Conclusion: From the below summary table, and corroborated by the lasso variable selection, it is the evident that the full model is the best model for the training data, therefore we select full model as our final model. It is observed that the model provided by stepwise AIC is marginally better in terms of AIC, Model MSE, R-Square and Adjusted R-Square, but the more stable corss-validation analysis during the lasso variable selection suggests that a full model would be a better fit for the training data. Best Subset is slightly worse than the full model and the stepwise selected model in all other measures except BIC.
+
+
+```{r}
+library(MASS)
+```
+
+### 1.1 Exploratory Data Analysis
+#### 1.1.1 Summary
+There're 13 predictor variables out of which 11 are continuous numerical variables and we've 1 each discrete numerical and categorical variable. The target variable being predicted is also a nummerical variable. There're 506 bservations recorded. The target variable has a very high standard deviation, suggesting that the house prices are scattered through out. From the boxplot of scaled columns it seems like "crim", "zn", "rm", "black" and the target variable "medv" have significantly high number of outliers.
+```{r}
+dim(Boston) 
+names(Boston)
+str(Boston)
+summary(Boston)
+boxplot(scale(Boston), col=rainbow(dim(Boston)[2]))
+```
+
+#### 1.1.2 Pairwise Correlation
+Target variable "Medv" - median value of owner-occupied homes in \$1000s, has a high negative correlation with "lstat" - Lower Status of the poultaion and has a high positive correlation with "rm" - Number of rooms in the dwellings.
+```{r}
+cor(Boston)
+```
+
+### 1.2 Linear Regression 
+#### 1.2.1 Data Preparation
+
+Next we sample 70% of the original data and use it as the training set. The remaining 30% is used as test set. The regression model will be built on the training set and future performance of your model will be evaluated with the test set.
+
+```{r}
+set.seed(13437885)
+sample_index <- sample(nrow(Boston),nrow(Boston)*0.70)
+Boston_train <- Boston[sample_index,]
+Boston_test <- Boston[-sample_index,]
+```
+
+#### 1.2.2 Standardization
+We standardize the variables so that results are invariant to the units and the parameter estimates βi are comparible.
+
+
+```{r}
+for (i in 1:(ncol(Boston_train)-1)){
+  Boston_train[,i] <- scale(Boston_train[,i])
+}
+```
+#### 1.2.3 Full Model Summary
+We fit a linear regression for the target variable against all the 13 predictor variables. We found the R-Square to be 0.755, predictably Adjusted R-Square is little less than R-Square at 0.7455. All the variables seem significant. MSE is at 21.921. AIC is at 2111.283 and BIC is at 2171.323. We will use these values to compare the full model with other models. 
+```{r}
+model_full <- lm(medv~., data=Boston_train)
+model_full_summary <- summary(model_full)
+model_full_summary
+(model_full_summary$sigma)^2
+AIC(model_full)
+BIC(model_full) #[1] 2171.323
+```
+
+### 1.3 Variable Selection
+We try to select variables for our final model using various methods and analyze the results from various methods.
+
+#### 1.3.1 Best Subset Selection
+Best subset selection estimates the best predictor variables to be a combination of "chas", "nox", "rm", "dis", "ptratio", "black" and "lstat" with the least BIC score.
+
+```{r}
+library(leaps)
+subset_result <- regsubsets(medv~.,data=Boston_train, nbest=1, nvmax = 14)
+summary(subset_result)
+plot(subset_result, scale="bic")
+
+#Model based on best subset
+model_best_subset <- lm(medv~rm + lstat + ptratio + black + dis + nox + chas, data=Boston_train)
+model_best_subset_summary <- summary(model_best_subset)
+model_best_subset_summary
+(model_best_subset_summary$sigma)^2
+AIC(model_best_subset)
+BIC(model_best_subset) #2151.372
+```
+
+
+#### 1.3.2 Stepwise Regression
+Using Step wise Regression we get a different model from best subset selection with predictor variables as "zn", "chas", "nox", "rm", "dis", "rad", "tax", "ptratio", "black" and "lstat". 
+
+```{r}
+nullmodel=lm(medv~1, data=Boston_train)
+fullmodel=lm(medv~., data=Boston_train)
+model_step_s <- step(nullmodel, scope=list(lower=nullmodel, upper=fullmodel), direction='both')
+model_step_s_summary <- summary(model_step_s)
+model_step_s_summary
+(model_step_s_summary$sigma)^2
+AIC(model_step_s)
+BIC(model_step_s) #[1] 2155.696
+```
+
+#### 1.3.3 Lasso Variable Regression
+After cross-validation the lasso variable selection with a lambda of 0.04122 suggests that the full model is the best model and the Average SSE calculated using insample prediction is 21.058.
+
+```{r}
+library(glmnet)
+lasso_fit = glmnet(x = as.matrix(Boston_train[, -c(which(colnames(Boston_train)=='medv'))])
+                   , y = Boston_train$medv, alpha = 1)
+#use 5-fold cross validation to pick lambda
+cv_lasso_fit = cv.glmnet(
+  x = as.matrix(Boston_train[,-c(which(colnames(Boston_train)=='medv'))])
+                         , y = Boston_train$medv, alpha = 1, nfolds = 5)
+plot(cv_lasso_fit)
+cv_lasso_fit$lambda.min
+coef(lasso_fit,s=cv_lasso_fit$lambda.min)
+Boston.insample.prediction = predict(lasso_fit, as.matrix(Boston_train[, -c(which(colnames(Boston)=='medv'))]), s = cv_lasso_fit$lambda.min)
+#Average SSE
+sum((Boston.insample.prediction - Boston_train$medv)^2)/length(Boston_train$medv)
+```
+
+# 1.4 Residual Diagnostics
+Residual vs. Fitted: Here majority of the values are spread around a horizontal line without any pattern, this sguuests that possibly there'so no linear relationship between the predictors and the target variable.
+Normal Q-Q: A straight line here suggests that the residuals are normally distributed. 
+Scale-Location: Although not entirely accurate the plot does suggest some level of equal variance for the residuals
+Residual vs. Leverage: This suggests that there're no influential outliers that could adversely affect the model.
+```{r}
+par(mfrow=c(2,2))
+plot(model_full)
+```
+
+
